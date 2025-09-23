@@ -1,0 +1,143 @@
+name: Validate Terraform
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: terraform-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: eu-west-2
+  TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+  TF_IN_AUTOMATION: true
+
+jobs:
+  lint:
+    name: Terraform formatting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Create Terraform plugin cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-${{ runner.os }}-
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.3
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive
+
+  validate:
+    name: Terraform validate (${{ matrix.directory }})
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        directory:
+          - .
+          - examples/complete
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Create Terraform plugin cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-${{ runner.os }}-
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.3
+
+      - name: Terraform init
+        working-directory: ${{ matrix.directory }}
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform validate
+        working-directory: ${{ matrix.directory }}
+        run: terraform validate -no-color
+
+  tflocal:
+    name: LocalStack integration tests
+    runs-on: ubuntu-latest
+    needs: validate
+    timeout-minutes: 45
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: ""
+          DEBUG: "0"
+        options: >-
+          --health-cmd="curl --fail http://localhost:4566/_localstack/health || exit 1" \
+          --health-interval=5s \
+          --health-retries=20 \
+          --health-timeout=5s
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Create Terraform plugin cache directory
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache Terraform providers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: terraform-${{ runner.os }}-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            terraform-${{ runner.os }}-
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.3
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.13
+
+      - name: Install tflocal
+        run: pip install --upgrade terraform-local
+
+      - name: Validate module configuration with tflocal
+        run: |
+          tflocal init -input=false
+          tflocal validate
+
+      - name: Validate example configuration with tflocal
+        working-directory: examples/complete
+        run: |
+          tflocal init -input=false
+          tflocal validate
+          tflocal plan -out=tfplan
+          tflocal show tfplan
+          tflocal apply -input=false -auto-approve tfplan
+          tflocal destroy -input=false -auto-approve
