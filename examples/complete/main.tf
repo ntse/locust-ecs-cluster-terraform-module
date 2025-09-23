@@ -18,15 +18,11 @@ provider "aws" {
 }
 
 data "http" "caller_ip" {
-  url = "https://ifconfig.co/json"
-  request_headers = {
-    Accept = "application/json"
-  }
+  url = "https://icanhazip.com"
 }
 
 locals {
-  caller_ip_json   = jsondecode(data.http.caller_ip.body)
-  default_web_cidr = "${local.caller_ip_json.ip}/32"
+  default_web_cidr = "${chomp(data.http.caller_ip.response_body)}/32"
   web_cidr_ingress = length(var.web_cidr_ingress_blocks) > 0 ? var.web_cidr_ingress_blocks : [local.default_web_cidr]
 }
 
