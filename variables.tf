@@ -1,153 +1,77 @@
 variable "cluster_name" {
-  description = "Prefix used for naming infrastructure resources"
+  description = "Prefix used when naming resources created by the module."
   type        = string
 }
 
-variable "subnet_id" {
-  description = "Subnet ID where the Locust cluster instances will be provisioned"
+variable "vpc_id" {
+  description = "ID of the VPC where all resources will be created."
   type        = string
 }
 
-variable "node_size" {
-  description = "Number of Locust worker nodes to provision"
+variable "private_subnet_ids" {
+  description = "List of private subnet IDs for the Locust ECS tasks (master and workers)."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.private_subnet_ids) > 0
+    error_message = "Provide at least one subnet ID for the ECS tasks."
+  }
+}
+
+variable "public_subnet_ids" {
+  description = "List of public subnet IDs where the load balancer will be deployed (must span at least two AZs)."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.public_subnet_ids) >= 2
+    error_message = "Provide at least two subnet IDs in distinct AZs for the load balancer."
+  }
+}
+
+variable "worker_count" {
+  description = "Desired number of Locust workers. These tasks run on Fargate Spot capacity."
   type        = number
   default     = 3
 }
 
 variable "loadtest_dir_source" {
-  description = "Path to the local directory containing Locust assets to copy to the instances"
+  description = "Local directory that contains the Locust assets. The module uploads the test plan file from this folder to S3."
   type        = string
-  default     = "locust/"
+  default     = "locust"
 }
 
 variable "locust_plan_filename" {
-  description = "Filename of the Locust test plan"
+  description = "Filename of the Locust test plan to run."
   type        = string
   default     = "locustfile.py"
 }
 
 variable "loadtest_dir_destination" {
-  description = "Destination directory on instances for the load test assets"
+  description = "Filesystem path mounted inside each task from the shared EFS volume."
   type        = string
   default     = "/loadtest"
 }
 
-variable "ssh_user" {
-  description = "SSH username for connecting to EC2 instances"
-  type        = string
-  default     = "ec2-user"
-}
-
-variable "ssh_export_pem" {
-  description = "Export the generated private SSH key to disk"
-  type        = bool
-  default     = true
-}
-
-variable "leader_instance_type" {
-  description = "Instance type for the Locust leader"
-  type        = string
-  default     = "c5n.large"
-}
-
-variable "worker_instance_type" {
-  description = "Instance type for the Locust workers"
-  type        = string
-  default     = "c5n.xlarge"
-}
-
-variable "leader_ami_id" {
-  description = "Optional override for the leader AMI"
-  type        = string
-  default     = ""
-}
-
-variable "worker_ami_id" {
-  description = "Optional override for the worker AMI"
-  type        = string
-  default     = ""
-}
-
-variable "leader_associate_public_ip" {
-  description = "Whether to associate a public IP address with the leader"
-  type        = bool
-  default     = true
-}
-
-variable "worker_associate_public_ip" {
-  description = "Whether to associate public IP addresses with workers"
-  type        = bool
-  default     = true
-}
-
-variable "leader_monitoring" {
-  description = "Enable detailed monitoring for the leader"
-  type        = bool
-  default     = true
-}
-
-variable "worker_monitoring" {
-  description = "Enable detailed monitoring for the workers"
-  type        = bool
-  default     = true
-}
-
 variable "locust_version" {
-  description = "Locust version to install on the cluster"
+  description = "Locust Docker image tag to deploy."
   type        = string
   default     = "2.40.5"
 }
 
-variable "python_version" {
-  description = "Python version to install (major.minor[.patch])"
+variable "requirements_filename" {
+  description = "Filename containing pip dependencies to install alongside the Locust plan."
   type        = string
-  default     = "3.13.0"
-}
-
-variable "ssh_cidr_ingress_blocks" {
-  description = "CIDR blocks allowed to connect over SSH"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = "requirements.txt"
 }
 
 variable "web_cidr_ingress_blocks" {
-  description = "CIDR blocks allowed to connect to the Locust web UI"
+  description = "CIDR blocks allowed to reach the Locust web UI."
   type        = list(string)
   default     = []
 }
 
-variable "split_data_mass_between_nodes" {
-  description = "Configuration for splitting data files across workers"
-  type = object({
-    enable              = bool
-    data_mass_filenames = list(string)
-  })
-  default = {
-    enable              = false
-    data_mass_filenames = []
-  }
-}
-
-variable "auto_start_locust" {
-  description = "Automatically start the Locust master and workers after provisioning"
-  type        = bool
-  default     = true
-}
-
 variable "tags" {
-  description = "Common tags applied to all resources"
-  type        = map(string)
-  default     = {}
-}
-
-variable "leader_tags" {
-  description = "Additional tags for the leader instance"
-  type        = map(string)
-  default     = {}
-}
-
-variable "worker_tags" {
-  description = "Additional tags for the worker instances"
+  description = "Tags applied to supported resources."
   type        = map(string)
   default     = {}
 }

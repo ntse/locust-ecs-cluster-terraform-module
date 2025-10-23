@@ -1,16 +1,16 @@
 # Locust Cluster Terraform Module
 
-This module provisions a distributed [Locust](https://locust.io/) cluster on AWS using EC2 instances. It creates the networking guard rails, IAM permissions, EC2 leader/worker nodes, and bootstrap logic required to run Locust with an opinionated but configurable setup. Consumers can point the module at their own Locust assets and tune instance types, scaling, and automation behaviour through variables exposed in `variables.tf`.
+This module provisions a distributed [Locust](https://locust.io/) cluster on AWS using ECS on Fargate. It builds the networking guard rails, compute resources, shared storage, and asset pipeline required to run Locust with an opinionated but configurable setup. Consumers can point the module at their own Locust assets and tune worker capacity, networking, and automation behaviour through variables exposed in `variables.tf`.
 
 Based on the work of marcosborges: https://github.com/marcosborges/terraform-aws-loadtest-distribuited
 
 ## Features
 
-- IAM role and instance profile tailored for the Locust hosts.
-- Security group opening SSH and Locust web ports, with CIDR allow-lists you control.
-- TLS key pair generation with optional key export to your local machine.
-- Leader and worker EC2 instances that install the requested Python runtime and Locust version via user data.
-- Optional automatic start-up script that joins all workers to the leader once provisioning finishes.
+- ECS Fargate services for the Locust master (1 task) and a configurable number of workers.
+- Workers run on Fargate Spot capacity by default, significantly reducing cost while keeping the master on on-demand Fargate.
+- Shared EFS file system mounted via an access point so every task reads the same Locust assets.
+- S3 bucket and AWS DataSync task that replicate the Locust plan (and any other uploaded assets) into EFS.
+- Network Load Balancer forwarding UI (8080) and worker coordination traffic (5557/5558) to the master task, with CIDR-based allow lists for the web UI.
 
 ## Requirements
 
@@ -25,14 +25,22 @@ module "locust_cluster" {
   source = "github.com/ntse/locust-cluster-module"
 
   cluster_name = "locust-example"
-  subnet_id    = "subnet-0123456789abcdef0"
+  vpc_id       = "vpc-0123456789abcdef0"
+  private_subnet_ids = [
+    "subnet-aaaabbbbcccc11111",
+    "subnet-aaaabbbbcccc22222",
+    "subnet-aaaabbbbcccc33333"
+  ]
+  public_subnet_ids = [
+    "subnet-ddddeeeeffff44444",
+    "subnet-ddddeeeeffff55555"
+  ]
 
-  node_size                 = 3
-  loadtest_dir_source       = "../locust"
-  ssh_cidr_ingress_blocks   = ["203.0.113.10/32"]
-  web_cidr_ingress_blocks   = ["203.0.113.10/32"]
-  locust_plan_filename      = "locustfile.py"
-  auto_start_locust         = true
+  worker_count             = 3
+  loadtest_dir_source      = "../locust"
+  locust_plan_filename     = "locustfile.py"
+  loadtest_dir_destination = "/loadtest"
+  web_cidr_ingress_blocks  = ["203.0.113.10/32"]
   tags = {
     Project     = "load-testing"
     Environment = "staging"
@@ -42,9 +50,9 @@ module "locust_cluster" {
 
 All input variables, their defaults, and descriptions are documented in [`variables.tf`](variables.tf). Outputs are listed in [`outputs.tf`](outputs.tf).
 
-## Examples
+### Syncing test assets
 
-- [`examples/complete`](examples/complete) – end-to-end configuration that sets up the AWS provider, auto-detects the caller IP for the web security group, and wires every module input and output. You can use this as a template when integrating the module into your own stack.
+At apply time the module uploads `locust_plan_filename` from `loadtest_dir_source` to the dedicated S3 bucket and keeps an AWS DataSync task ready to mirror S3 objects into EFS. Every Locust task mounts the EFS access point at `loadtest_dir_destination`, so new files appear in every container after the sync finishes.
 
 ## Testing with LocalStack / `tflocal`
 
@@ -66,6 +74,10 @@ cd examples/complete
 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=eu-west-2 tflocal init
 AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=eu-west-2 tflocal validate
 ```
+
+## Examples
+
+- [`examples/complete`](examples/complete) – end-to-end configuration that sets up the AWS provider, auto-detects the caller IP for the web security group, and wires every module input and output. You can use this as a template when integrating the module into your own stack.
 
 ## Contributing
 
