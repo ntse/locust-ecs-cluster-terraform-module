@@ -45,15 +45,15 @@ module "vpc" {
 module "locust_cluster" {
   source = "../.."
 
-  cluster_name               = var.cluster_name
-  vpc_id                     = module.vpc.vpc_id
-  private_subnet_ids         = module.vpc.private_subnets
-  public_subnet_ids          = module.vpc.public_subnets
-  worker_count               = var.worker_count
-  loadtest_dir_source        = var.loadtest_dir_source
-  locust_plan_filename       = var.locust_plan_filename
-  loadtest_dir_destination   = var.loadtest_dir_destination
-  locust_version             = var.locust_version
-  web_cidr_ingress_blocks    = local.web_cidr_ingress
-  tags                       = var.tags
+  cluster_name             = var.cluster_name
+  vpc_id                   = module.vpc.vpc_id
+  private_subnet_ids       = module.vpc.private_subnets
+  public_subnet_ids        = module.vpc.public_subnets
+  worker_count             = var.worker_count
+  loadtest_dir_source      = var.loadtest_dir_source
+  locust_plan_filename     = var.locust_plan_filename
+  loadtest_dir_destination = var.loadtest_dir_destination
+  locust_version           = var.locust_version
+  web_cidr_ingress_blocks  = local.web_cidr_ingress
+  tags                     = var.tags
 }
