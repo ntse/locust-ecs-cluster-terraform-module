@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Create Terraform plugin cache directory
         run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
@@ -47,7 +47,7 @@ jobs:
           - examples/complete
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Create Terraform plugin cache directory
         run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
@@ -80,7 +80,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Start LocalStack
         uses: LocalStack/setup-localstack@v0.2.4
